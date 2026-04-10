@@ -211,21 +211,20 @@ When filters are provided without a query, all matching tools are returned:
 				if searchCategory != "" && !strings.EqualFold(r.Category, searchCategory) {
 					continue
 				}
-				// Type, protocol, and tag filters require index entry lookup
-				if searchType != "" || searchProtocol != "" || searchTag != "" {
-					matched := true
-					if searchType != "" {
-						matched = matched && matchesType(r, searchType, cfg)
-					}
-					if searchProtocol != "" {
-						matched = matched && matchesProtocol(r, searchProtocol, cfg)
-					}
-					if searchTag != "" {
-						matched = matched && matchesTag(r, searchTag, cfg)
-					}
-					if !matched {
+				if searchProtocol != "" {
+					if r.Protocol != "" {
+						if !strings.EqualFold(r.Protocol, searchProtocol) {
+							continue
+						}
+					} else if !matchesProtocol(r, searchProtocol, cfg) {
 						continue
 					}
+				}
+				if searchType != "" && !matchesType(r, searchType, cfg) {
+					continue
+				}
+				if searchTag != "" && !matchesTag(r, searchTag, cfg) {
+					continue
 				}
 				filtered = append(filtered, r)
 			}
@@ -354,7 +353,7 @@ When filters are provided without a query, all matching tools are returned:
 // matchesType checks if a result matches the requested type by looking up the index entry.
 func matchesType(r models.SearchResult, wantType string, cfg *config.Config) bool {
 	if cfg == nil {
-		return true
+		return false
 	}
 	bucketsDir := config.ToolboxesDir()
 	for _, reg := range cfg.Toolboxes {
@@ -366,13 +365,13 @@ func matchesType(r models.SearchResult, wantType string, cfg *config.Config) boo
 		}
 		return strings.EqualFold(entry.Type, wantType)
 	}
-	return true
+	return false
 }
 
 // matchesProtocol checks if a result matches the requested protocol by looking up the index entry.
 func matchesProtocol(r models.SearchResult, wantProtocol string, cfg *config.Config) bool {
 	if cfg == nil {
-		return true
+		return false
 	}
 	bucketsDir := config.ToolboxesDir()
 	for _, reg := range cfg.Toolboxes {
@@ -384,13 +383,13 @@ func matchesProtocol(r models.SearchResult, wantProtocol string, cfg *config.Con
 		}
 		return strings.EqualFold(entry.Protocol, wantProtocol)
 	}
-	return true
+	return false
 }
 
 // matchesTag checks if a result has the requested tag by looking up the index entry.
 func matchesTag(r models.SearchResult, wantTag string, cfg *config.Config) bool {
 	if cfg == nil {
-		return true
+		return false
 	}
 	bucketsDir := config.ToolboxesDir()
 	for _, reg := range cfg.Toolboxes {
@@ -407,7 +406,7 @@ func matchesTag(r models.SearchResult, wantTag string, cfg *config.Config) bool 
 		}
 		return false
 	}
-	return true
+	return false
 }
 
 // matchesAuth checks if a result's auth type matches the requested filter.
