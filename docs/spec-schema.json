@@ -1,0 +1,333 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://clictl.dev/spec/1.0/schema.json",
+  "title": "clictl Tool Spec 1.0",
+  "description": "Describes a tool that AI agents can discover and use via clictl.",
+  "type": "object",
+  "required": ["spec", "name", "protocol", "description"],
+  "properties": {
+    "spec": {
+      "type": "string",
+      "const": "1.0",
+      "description": "Spec format version."
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "Tool identifier. Lowercase with hyphens."
+    },
+    "protocol": {
+      "type": "string",
+      "enum": ["http", "mcp", "skill", "website", "command"],
+      "description": "Tool protocol type."
+    },
+    "description": {
+      "type": "string",
+      "description": "What this tool does."
+    },
+    "version": {
+      "type": "string",
+      "description": "Tool version."
+    },
+    "category": {
+      "type": "string",
+      "description": "Primary category."
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Searchable tags."
+    },
+    "instructions": {
+      "type": "string",
+      "description": "Markdown guidance for agents."
+    },
+    "server": {
+      "$ref": "#/$defs/server"
+    },
+    "package": {
+      "$ref": "#/$defs/package"
+    },
+    "auth": {
+      "$ref": "#/$defs/auth"
+    },
+    "actions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/action" },
+      "description": "Operations the tool exposes."
+    },
+    "source": {
+      "$ref": "#/$defs/source"
+    },
+    "sandbox": {
+      "$ref": "#/$defs/sandbox"
+    },
+    "publisher": {
+      "$ref": "#/$defs/publisher"
+    },
+    "allow": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "MCP tool allow patterns."
+    },
+    "deny": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "MCP tool deny patterns."
+    },
+    "prompts": {
+      "type": "object",
+      "properties": {
+        "system": { "type": "string" },
+        "tool_instructions": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      },
+      "description": "Agent guidance prompts."
+    },
+    "resources": {
+      "type": "object",
+      "description": "MCP resource exposure config."
+    },
+    "transforms": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "$ref": "#/$defs/transform_step" }
+      },
+      "description": "Per-action transforms keyed by action name."
+    },
+    "depends": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Tool dependencies."
+    },
+    "runtime": {
+      "$ref": "#/$defs/runtime"
+    },
+    "pricing": {
+      "type": "object",
+      "description": "Cost model."
+    },
+    "privacy": {
+      "type": "object",
+      "description": "Data handling hints."
+    }
+  },
+  "patternProperties": {
+    "^x-": {
+      "description": "Extension fields. Preserved but not validated."
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "server": {
+      "type": "object",
+      "properties": {
+        "url": { "type": "string", "format": "uri", "description": "Base URL." },
+        "command": { "type": "string", "description": "Binary to execute (MCP/command)." },
+        "args": { "type": "array", "items": { "type": "string" }, "description": "Command arguments." },
+        "env": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Environment variables." },
+        "headers": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Default headers." },
+        "timeout": { "type": "string", "description": "Request timeout (e.g., 30s)." },
+        "shell": { "type": "string", "description": "Shell for command protocol." },
+        "requires": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "check": { "type": "string" },
+              "url": { "type": "string" }
+            },
+            "required": ["name"]
+          }
+        }
+      }
+    },
+    "package": {
+      "type": "object",
+      "required": ["registry", "name", "version"],
+      "properties": {
+        "registry": { "type": "string", "enum": ["npm", "pypi"] },
+        "name": { "type": "string" },
+        "version": { "type": "string" },
+        "manager": { "type": "string", "description": "Override runner (npx, uvx, bunx)." },
+        "runtime": { "type": "string", "description": "Required runtime (node, python)." },
+        "pinned": { "type": "boolean" },
+        "sha256": { "type": "string" }
+      }
+    },
+    "auth": {
+      "type": "object",
+      "required": ["env"],
+      "properties": {
+        "env": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ],
+          "description": "Environment variable name(s)."
+        },
+        "header": { "type": "string", "description": "Header template: 'HeaderName: ${ENV_VAR}'." },
+        "param": { "type": "string", "description": "Query parameter name." }
+      },
+      "additionalProperties": false
+    },
+    "action": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "method": { "type": "string", "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"] },
+        "path": { "type": "string" },
+        "url": { "type": "string" },
+        "params": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/param" }
+        },
+        "auth": { "$ref": "#/$defs/auth" },
+        "transform": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/transform_step" }
+        },
+        "mutable": { "type": "boolean" },
+        "stream": { "type": "boolean" },
+        "stream_timeout": { "type": "string" },
+        "run": { "type": "string", "description": "Shell command template (command protocol)." },
+        "output": { "type": "string" },
+        "instructions": { "type": "string" },
+        "pagination": { "$ref": "#/$defs/pagination" },
+        "retry": { "$ref": "#/$defs/retry" },
+        "assert": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "test": { "type": "object" },
+        "response": { "type": "object" },
+        "steps": { "type": "array", "description": "Composite action steps." }
+      }
+    },
+    "param": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["string", "int", "float", "bool", "array", "number"], "default": "string" },
+        "required": { "type": "boolean", "default": false },
+        "description": { "type": "string" },
+        "default": { "type": "string" },
+        "in": { "type": "string", "enum": ["query", "body", "path", "header"] },
+        "example": { "type": "string" },
+        "values": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "transform_step": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string" },
+        "extract": { "type": "string" },
+        "select": { "type": "array", "items": { "type": "string" } },
+        "rename": { "type": "object", "additionalProperties": { "type": "string" } },
+        "template": { "type": "string" },
+        "max_items": { "type": "integer" },
+        "max_length": { "type": "integer" },
+        "field": { "type": "string" },
+        "order": { "type": "string", "enum": ["asc", "desc"] },
+        "filter": { "type": "string" },
+        "separator": { "type": "string" },
+        "from": { "type": "string" },
+        "to": { "type": "string" },
+        "headers": { "type": "boolean" },
+        "value": { "type": "string" },
+        "script": { "type": "string" },
+        "on": { "type": "string", "enum": ["request", "output"] },
+        "flatten": { "type": "boolean" },
+        "unwrap": { "type": "boolean" }
+      }
+    },
+    "pagination": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["page", "cursor", "offset"] },
+        "param": { "type": "string" },
+        "per_page_param": { "type": "string" },
+        "per_page_default": { "type": "integer" },
+        "limit_param": { "type": "string" },
+        "limit_default": { "type": "integer" },
+        "cursor_path": { "type": "string" },
+        "has_more_path": { "type": "string" },
+        "max_pages": { "type": "integer" }
+      }
+    },
+    "retry": {
+      "type": "object",
+      "properties": {
+        "on": { "type": "array", "items": { "type": "integer" } },
+        "max_attempts": { "type": "integer" },
+        "backoff": { "type": "string", "enum": ["exponential", "linear", "fixed"] },
+        "delay": { "type": "string" }
+      }
+    },
+    "source": {
+      "type": "object",
+      "required": ["repo"],
+      "properties": {
+        "repo": { "type": "string", "description": "GitHub repo (org/repo)." },
+        "path": { "type": "string" },
+        "ref": { "type": "string" },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path"],
+            "properties": {
+              "path": { "type": "string" },
+              "sha256": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "sandbox": {
+      "type": "object",
+      "properties": {
+        "env": {
+          "type": "object",
+          "properties": {
+            "allow": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "network": {
+          "type": "object",
+          "properties": {
+            "allow": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "filesystem": {
+          "type": "object",
+          "properties": {
+            "read": { "type": "array", "items": { "type": "string" } },
+            "write": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+    "publisher": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "url": { "type": "string", "format": "uri" }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "properties": {
+        "manager": { "type": "string" },
+        "dependencies": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

@@ -1,0 +1,22 @@
+name: auth-test
+description: Auth-required test service
+version: "1.0.0"
+category: testing
+tags: [test, auth]
+protocol: http
+connection:
+  base_url: https://httpbin.org
+auth:
+  - type: api_key
+    key_env: AUTH_TEST_KEY
+    inject:
+      location: header
+      key: X-Api-Key
+actions:
+  - name: check
+    description: Check auth header is sent
+    method: GET
+    path: /headers
+    safe: true
+    transform:
+      - extract: "$.headers"

@@ -1,0 +1,55 @@
+name: Website Bug Report
+description: Report a bug on clictl.dev
+labels: ["bug", "website"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a website bug. Please fill in the details below.
+  - type: input
+    id: url
+    attributes:
+      label: Page URL
+      description: The URL where you encountered the bug
+      placeholder: "https://clictl.dev/browse/gstack-ship"
+    validations:
+      required: true
+  - type: dropdown
+    id: browser
+    attributes:
+      label: Browser
+      options:
+        - Chrome
+        - Firefox
+        - Safari
+        - Edge
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What you expected to happen
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What actually happened. Include screenshots if possible.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      value: |
+        1.
+        2.
+        3.
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Browser console errors, network errors, account type, etc.

@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "generated_at": "2025-01-01T00:00:00Z",
+  "specs": {
+    "echo-test": {
+      "version": "1.0.0",
+      "description": "Echo service for testing",
+      "category": "testing",
+      "type": "api",
+      "protocol": "http",
+      "tags": ["test", "echo", "http"],
+      "path": "apis/demo/echo-test.yaml",
+      "auth": "none"
+    },
+    "auth-test": {
+      "version": "1.0.0",
+      "description": "Auth-required test service",
+      "category": "testing",
+      "type": "api",
+      "protocol": "http",
+      "tags": ["test", "auth"],
+      "path": "apis/demo/auth-test.yaml",
+      "auth": "api_key"
+    },
+    "composite-test": {
+      "version": "1.0.0",
+      "description": "Composite workflow test",
+      "category": "testing",
+      "type": "api",
+      "protocol": "composite",
+      "tags": ["test", "composite"],
+      "path": "apis/demo/composite-test.yaml",
+      "auth": "none"
+    }
+  }
+}

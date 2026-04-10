@@ -1,0 +1,252 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  R2_BUCKET: ${{ secrets.R2_BUCKET_NAME }}
+  SIGNING_PUBLIC_KEY: ${{ secrets.SIGNING_PUBLIC_KEY }}
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+
+  build:
+    name: Build release assets
+    needs: test
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Build release archives
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+
+          VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo dev)
+          COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo unknown)
+          DATE=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+          LDFLAGS="-s -w -X github.com/clictl/cli/internal/command.Version=${VERSION} -X github.com/clictl/cli/internal/command.Commit=${COMMIT} -X github.com/clictl/cli/internal/command.BuildDate=${DATE} -X github.com/clictl/cli/internal/signing.RegistryPublicKeyB64=${SIGNING_PUBLIC_KEY}"
+
+          build_unix() {
+            local goos="$1"
+            local goarch="$2"
+            local out="clictl-${goos}-${goarch}"
+            CGO_ENABLED=0 GOOS="${goos}" GOARCH="${goarch}" go build -trimpath -ldflags="${LDFLAGS}" -o dist/clictl ./cmd/clictl
+            tar -czf "dist/${out}.tar.gz" -C dist clictl
+            rm -f dist/clictl
+          }
+
+          build_windows() {
+            local goarch="$1"
+            local out="clictl-windows-${goarch}"
+            CGO_ENABLED=0 GOOS=windows GOARCH="${goarch}" go build -trimpath -ldflags="${LDFLAGS}" -o dist/clictl.exe ./cmd/clictl
+            (cd dist && zip -q "${out}.zip" clictl.exe)
+            rm -f dist/clictl.exe
+          }
+
+          build_unix linux amd64
+          build_unix linux arm64
+          build_unix darwin amd64
+          build_unix darwin arm64
+          build_windows amd64
+
+          cp install.sh dist/install.sh
+          cp install-latest.sh dist/install-latest.sh
+          cp install.ps1 dist/install.ps1
+          chmod +x dist/install.sh dist/install-latest.sh
+
+      - name: Generate checksums
+        run: |
+          set -euo pipefail
+          (cd dist && shasum -a 256 clictl-* > checksums.txt)
+
+      - name: Generate version manifest
+        run: |
+          set -euo pipefail
+          VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo dev)
+          COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo unknown)
+          DATE=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+
+          cat > dist/version.json <<MANIFEST
+          {
+            "version": "${VERSION}",
+            "commit": "${COMMIT}",
+            "date": "${DATE}",
+            "assets": {
+              "linux-amd64": "releases/${VERSION}/clictl-linux-amd64.tar.gz",
+              "linux-arm64": "releases/${VERSION}/clictl-linux-arm64.tar.gz",
+              "darwin-amd64": "releases/${VERSION}/clictl-darwin-amd64.tar.gz",
+              "darwin-arm64": "releases/${VERSION}/clictl-darwin-arm64.tar.gz",
+              "windows-amd64": "releases/${VERSION}/clictl-windows-amd64.zip"
+            },
+            "checksums_url": "releases/${VERSION}/checksums.txt"
+          }
+          MANIFEST
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v5
+        with:
+          name: release-assets
+          path: dist/
+
+  deploy:
+    name: Deploy to R2 and GitHub Releases
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v5
+        with:
+          name: release-assets
+          path: dist/
+
+      - name: Deploy to R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ENDPOINT: ${{ secrets.R2_S3_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET_NAME }}
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME}"
+
+          upload() {
+            local src="$1" dest="$2"
+            echo "Uploading $(basename "$src") -> $dest"
+            aws s3 cp "$src" "s3://${R2_BUCKET}/${dest}" --endpoint-url "${R2_ENDPOINT}"
+          }
+
+          # Upload versioned release assets
+          for f in dist/clictl-* dist/checksums.txt; do
+            upload "$f" "releases/${VERSION}/$(basename "$f")"
+          done
+
+          # Upload to latest/ path
+          for f in dist/clictl-* dist/checksums.txt; do
+            upload "$f" "releases/latest/$(basename "$f")"
+          done
+
+          # Upload version manifest and install scripts
+          upload dist/version.json "version.json"
+          upload dist/install.sh "install.sh"
+          upload dist/install-latest.sh "install-latest.sh"
+          upload dist/install.ps1 "install.ps1"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/clictl-*
+            dist/checksums.txt
+            dist/install.sh
+            dist/install-latest.sh
+            dist/install.ps1
+            dist/version.json
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  update-package-manifests:
+    name: Update Homebrew and Scoop manifests
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v5
+        with:
+          name: release-assets
+          path: dist/
+
+      - name: Compute SHA256 hashes
+        id: hashes
+        run: |
+          set -euo pipefail
+          echo "darwin_arm64=$(shasum -a 256 dist/clictl-darwin-arm64.tar.gz | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "darwin_amd64=$(shasum -a 256 dist/clictl-darwin-amd64.tar.gz | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "linux_arm64=$(shasum -a 256 dist/clictl-linux-arm64.tar.gz | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "linux_amd64=$(shasum -a 256 dist/clictl-linux-amd64.tar.gz | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "windows_amd64=$(shasum -a 256 dist/clictl-windows-amd64.zip | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - name: Update Homebrew tap
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
+          VERSION: ${{ github.ref_name }}
+          SHA_DA: ${{ steps.hashes.outputs.darwin_arm64 }}
+          SHA_DI: ${{ steps.hashes.outputs.darwin_amd64 }}
+          SHA_LA: ${{ steps.hashes.outputs.linux_arm64 }}
+          SHA_LI: ${{ steps.hashes.outputs.linux_amd64 }}
+        run: |
+          set -euo pipefail
+          VER="${VERSION#v}"
+          git clone https://x-access-token:${GH_TOKEN}@github.com/clictl/homebrew-clictl.git /tmp/homebrew-clictl
+          cd /tmp/homebrew-clictl
+
+          # Update version and hashes
+          sed -i "s/version \".*\"/version \"${VER}\"/" Formula/clictl.rb
+          awk -v da="$SHA_DA" -v di="$SHA_DI" -v la="$SHA_LA" -v li="$SHA_LI" '
+            BEGIN { i=0; s[0]=da; s[1]=di; s[2]=la; s[3]=li }
+            /sha256 "/ { sub(/sha256 ".*"/, "sha256 \"" s[i] "\""); i++ }
+            { print }
+          ' Formula/clictl.rb > Formula/clictl.rb.tmp && mv Formula/clictl.rb.tmp Formula/clictl.rb
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/clictl.rb
+          git diff --cached --quiet || git commit -m "Update to ${VERSION}" && git push
+
+      - name: Update Scoop bucket
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
+          VERSION: ${{ github.ref_name }}
+          SHA_W64: ${{ steps.hashes.outputs.windows_amd64 }}
+        run: |
+          set -euo pipefail
+          VER="${VERSION#v}"
+          git clone https://x-access-token:${GH_TOKEN}@github.com/clictl/scoop-clictl.git /tmp/scoop-clictl
+          cd /tmp/scoop-clictl
+
+          jq --arg ver "$VER" --arg sha "$SHA_W64" '
+            .version = $ver |
+            .license = "Apache-2.0" |
+            .architecture["64bit"].url = "https://download.clictl.dev/releases/v\($ver)/clictl-windows-amd64.zip" |
+            .architecture["64bit"].hash = $sha
+          ' bucket/clictl.json > bucket/clictl.json.tmp && mv bucket/clictl.json.tmp bucket/clictl.json
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add bucket/clictl.json
+          git diff --cached --quiet || git commit -m "Update to ${VERSION}" && git push

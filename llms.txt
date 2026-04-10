@@ -1,0 +1,234 @@
+# clictl
+
+> The package manager for your Agent.
+
+clictl is a package manager that gives AI agents access to curated APIs, CLIs, and data sources. Your Agent can search, install, and use tools from the terminal. No MCP servers required. Works with Claude Code, Cursor, and any MCP-compatible provider. Login is not required.
+
+## What clictl does
+
+- Search a registry of APIs, CLI tools, MCP servers, and websites
+- Install tools as agent skills (creates skill files your AI reads automatically)
+- Execute tool actions directly from the terminal (REST, CLI, and MCP protocols)
+- Run as an MCP server so any MCP-compatible AI can call tools (gateway mode proxies upstream MCP servers)
+- Consume MCP servers as a client, listing and invoking tools from upstream MCP servers
+- Remember things about tools across sessions (local memory)
+- Transform API responses into clean, agent-friendly output
+- Manage multiple registries (official, community, private)
+- Suggest corrections for misspelled tool names ("Did you mean?")
+- Load secrets from .env files automatically
+
+## Key commands
+
+Core:
+- `clictl install [tool...]` - install skills (or the clictl skill with no args); fetches SKILL.md from source for MCP-protocol tools; verifies SHA256 integrity on install; --trust for unverified publishers
+- `clictl install group <name>` - install all tools in a named group at once
+- `clictl search <query>` - find tools (supports --category, --type, --tag, --auth, --ready, --protocol)
+- `clictl run <tool> <action> [--params]` - execute a tool action (alias: exec); handles MCP specs transparently; --json returns raw JSON without transforms
+- `clictl info <tool>` - show tool details (alias: inspect)
+
+Discovery:
+- `clictl list [--category <cat>] [--protocol <proto>]` - browse all tools
+- `clictl categories` - list categories with counts
+- `clictl tags` - list popular tags
+- `clictl info <tool>` - show details, actions, and auth requirements
+- `clictl explain <tool> <action>` - structured JSON help for agents
+- `clictl home <tool>` - open tool website in browser
+
+Management:
+- `clictl upgrade [tool...]` - update installed tools
+- `clictl outdated` - show tools with newer versions
+- `clictl update` - sync registries
+- `clictl tool disable/enable <tool>` - toggle tool availability
+- `clictl tool pin/unpin <tool>` - lock tool version
+- `clictl tool info <tool>` - show tool details (alias for info)
+
+Memory and feedback:
+- `clictl remember <tool> <note>` - save a note (auto-syncs if logged in)
+- `clictl feedback <tool> <up|down>` - rate a tool (saved locally, syncs if logged in)
+- `clictl star <tool>` - favorite a tool (syncs to workspace, boosts search ranking)
+- `clictl unstar <tool>` - remove from favorites
+- `clictl stars` - list favorited tools
+- `clictl metrics [tool]` - show workspace usage stats (--days flag, default 30)
+- `clictl uses <tool>` - show which installed tools reference a given tool
+
+Safety:
+- `clictl report <tool> --reason <reason>` - report a broken or malicious tool (auto-disabled at 3+ reports)
+- `clictl audit` - check installed tools against registry for issues
+- `clictl verify [tool] [--all]` - verify tool integrity against registry and lock file etags
+- `clictl publish <spec.yaml>` - publish a spec (requires login)
+
+Vault:
+- `clictl vault set <name> <value>` - store a secret in the encrypted vault (--project for per-project)
+- `clictl vault get <name>` - retrieve a secret (requires confirmation)
+- `clictl vault list` - list stored secret names (never shows values)
+- `clictl vault delete <name>` - remove a secret from the vault
+- `clictl vault export --format env --confirm` - export secrets as plaintext
+- `clictl vault import <file>` - migrate .env plaintext secrets to vault (--exclude to skip keys)
+- `clictl vault init` - generate vault key (--force to reset, --password for portable key)
+
+Toolboxes:
+- `clictl toolbox add <owner/repo>` - add a toolbox (Git repo)
+- `clictl toolbox remove <name>` - remove a toolbox
+- `clictl toolbox list` - list configured toolboxes
+- `clictl toolbox update [name]` - sync toolboxes from sources
+- `clictl toolbox validate <path>` - validate specs in a directory
+- `clictl toolbox create <name>` - scaffold a new toolbox
+- `clictl toolbox sync` - push local repo metadata to API (CI-driven sync, reads .clictl.yaml for workspace/namespace/spec_paths)
+- `clictl toolbox sync --dry-run` - preview what would be synced without sending
+
+Authoring:
+- `clictl init` - create a new spec interactively
+- `clictl init --from <openapi-url>` - generate spec from OpenAPI
+- `clictl test <tool>` - validate spec against live API
+- `clictl codegen <tool> --lang typescript` - generate typed SDK from spec (TypeScript or Python)
+- `clictl codegen --all --out ./sdk/` - generate SDKs for all installed tools
+- `clictl skill manifest <dir>` - generate YAML file manifest with SHA256 hashes from a local directory
+
+MCP:
+- `clictl mcp list-tools <server>` - list tools with parameters from an MCP server
+- `clictl mcp discover <url>` - discover tools from ad-hoc HTTP MCP server (--generate-spec to create a spec)
+- `clictl mcp-serve [--tools-only] [--no-sandbox]` - run as MCP stdio server (gateway mode auto-proxies MCP specs; subprocesses sandboxed by default; includes clictl_code tool for JS sandbox with clictl.search/run/inspect bindings)
+- `clictl mcp-serve --code-mode` - add execute_code tool with typed API bindings for agent code execution
+
+Auth and workspace:
+- `clictl login` - authenticate via browser OAuth
+- `clictl logout` - clear credentials
+- `clictl whoami` - show current user
+- `clictl connect <tool>` - authorize an OAuth-based tool
+- `clictl workspace show` - show active workspace
+- `clictl workspace switch` - switch workspace (interactive picker, or pass slug directly)
+- `clictl permissions [--tool <name>]` - check tool access
+- `clictl request <tool>` - request access to a tool
+- `clictl requests` - list tool access requests (approve/deny subcommands)
+
+Teams:
+- `clictl team create <name>` - create a team
+- `clictl team list` - list teams
+- `clictl team show <name>` - show team details
+- `clictl team members <name>` - list team members
+
+System:
+- `clictl doctor` - diagnose issues
+- `clictl cleanup` - remove stale cache, orphaned files (--dry-run, --all)
+- `clictl self-update` - update the clictl CLI binary to latest version
+- `clictl instructions` - show discovery rules for CLAUDE.md/AGENTS.md
+- `clictl version` - show version, registries, installed tools, auth status
+- `clictl install --no-mcp` - skip MCP registration (skill file only)
+- `clictl install --no-skill` - skip skill file (MCP only)
+
+## How tools are defined
+
+Tools are YAML (or JSON) spec files. Four required fields: `spec`, `name`, `protocol`, `description`. Five protocols: http, mcp, skill, website, command.
+
+```yaml
+spec: "1.0"
+name: open-meteo
+protocol: http
+description: Free weather API
+version: "1.0"
+category: weather
+tags: [weather, forecast]
+
+server:
+  url: https://api.open-meteo.com/v1
+
+actions:
+  - name: current
+    description: Get current weather
+    method: GET
+    path: /forecast
+    params:
+      - name: latitude
+        type: string
+        required: true
+      - name: longitude
+        type: string
+        required: true
+```
+
+MCP server spec (from npm package):
+```yaml
+spec: "1.0"
+name: github-mcp
+protocol: mcp
+description: GitHub API access via MCP
+package:
+  registry: npm
+  name: "@modelcontextprotocol/server-github"
+  version: 2025.4.8
+auth:
+  env: GITHUB_PERSONAL_ACCESS_TOKEN
+```
+
+## Transforms
+
+Tool specs can define a three-stage pipeline: pre-request transforms (modify params, build body), assertions (validate response), and response transforms (extract, reshape, format). Available types: pre_transform (default_params, rename_params, template_body, js), assert (status, exists, not_empty, equals, contains, js), transform (extract, select, template, truncate, rename, html_to_markdown, js, prefix, only, inject, redact, cost).
+
+Transforms are chainable. Each step's output feeds into the next. Use `--raw` to skip transforms.
+
+Test transforms without modifying specs:
+```bash
+echo '{"data": [1,2,3]}' | clictl transform --extract '$.data' --truncate 2
+```
+
+## Authentication
+
+Tool specs can declare permissions (network hosts and env vars) so users know what access a tool needs before installing. Published spec versions are immutable and cannot be overwritten. Tools with 3+ user reports are automatically disabled.
+
+Tool secrets are stored in environment variables or .env files, never in spec files. clictl reads them at execution time and injects them into requests.
+
+.env files are loaded automatically from: current directory, project root (.git parent), ~/.clictl/.env. Shell environment variables take precedence.
+
+The vault:// protocol replaces plaintext secrets with encrypted references. Set `STRIPE_API_KEY=vault://STRIPE_API_KEY` in .env and clictl resolves the real value from the encrypted vault at runtime. Secrets never appear in environment variables, process listings, or shell history. Resolution order: project vault (.clictl/vault.enc in git root), user vault (~/.clictl/vault.enc), workspace vault (enterprise, via API with caching), raw env var.
+
+User credentials (for the clictl platform) are stored at ~/.clictl/config.yaml with 0600 permissions. Login is only needed for managing tools you or your organization published.
+
+## Process Sandbox
+
+MCP server subprocesses are sandboxed by default to protect against supply chain attacks. Environment variables are scrubbed to an allowlist: only vars declared in `permissions.env`, `auth.env`, and `server.env` are passed. On Linux, Landlock restricts filesystem access. On macOS, sandbox-exec applies restrictions. On Windows, Job Objects contain the process tree. Sensitive directories (~/.ssh, ~/.aws, ~/.gnupg, browser profiles, crypto wallets) are never accessible. Disable with `--no-sandbox` or `sandbox: false` in config.
+
+## Memory
+
+Agents can save notes about tools using `clictl remember`. Memories persist across sessions and appear automatically on inspect and in skill files. Stored locally at ~/.clictl/memory/ as JSON files.
+
+## Skill Isolation
+
+Skills execute in-agent (not as subprocesses), so they require application-level isolation. Multiple layers restrict what a skill can do:
+
+- **Tool restriction:** Skills declare `requires_tools` in the spec. Only listed agent tools (Bash, Read, Write, etc.) are available during execution. Defaults to `[Bash]` if omitted.
+- **Filesystem scope:** `permissions.filesystem.read` and `permissions.filesystem.write` paths restrict file access to declared locations.
+- **Bash allowlisting (enterprise):** `bash_allow` patterns restrict which shell commands the skill can run. Supports glob matching.
+- **Network restriction (team+):** `permissions.network` restricts outbound connections to listed hosts.
+- **Skill signing (enterprise):** Ed25519 signatures on `source.signature` verify skill provenance. Workspaces can require all skills to be signed via `skill_require_signing` policy.
+
+### Enterprise Skill Policies
+
+Workspace admins can configure skill isolation policies:
+- `skill_default_posture`: Whether new skills are allowed or denied by default.
+- `skill_require_signing`: Reject unsigned skills.
+- `allowed_bash_patterns`: Workspace-wide bash allowlist applied to all skills.
+- `skill_max_filesystem_scope`: Maximum filesystem paths a skill can declare.
+
+Admins can also create skill permission overrides to tighten or loosen isolation for specific tools, and managed skill sets to group skills with shared policy.
+
+## Registries
+
+The official registry ships by default. Users can add community or private registries (any Git repo, including SSH for private). Works like Homebrew taps. Resolution order: added registries first, official last.
+
+```
+specs/<first-letter>/<tool>.yaml
+```
+
+For example, `toolbox/o/open-meteo/open-meteo.yaml`. The tool type comes from the spec's `protocol` field (http, mcp, skill, website, command). MCP specs discover tools from the server at runtime. Skills support multi-file installs via `source.files`.
+
+Categories are curated: ai, data, developer-tools, devops, security, communication, finance, productivity, commerce, media, science, location, health, monitoring, social, iot, other.
+
+## Links
+
+- Website: https://clictl.dev
+- Browse tools: https://clictl.dev/browse
+- About: https://clictl.dev/about
+- Repository: https://github.com/clictl/cli
+- Registry: https://github.com/clictl/registry
+- Documentation: https://clictl.dev/docs
+- Parent project: https://soapbucket.org

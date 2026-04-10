@@ -1,0 +1,35 @@
+name: composite-test
+description: Composite workflow test
+version: "1.0.0"
+category: testing
+tags: [test, composite]
+protocol: composite
+connection:
+  base_url: ""
+auth:
+  - type: none
+actions:
+  - name: pipeline
+    description: Two-step pipeline that chains httpbin calls
+    composite: true
+    params:
+      - name: message
+        type: string
+        required: true
+        description: Message to pass through the pipeline
+    steps:
+      - id: step1
+        method: GET
+        url: "https://httpbin.org/get"
+        headers:
+          Accept: application/json
+        params:
+          msg: "{{params.message}}"
+      - id: step2
+        method: GET
+        url: "https://httpbin.org/get"
+        headers:
+          Accept: application/json
+        depends_on: [step1]
+        params:
+          echo: "{{steps.step1.output.args.msg}}"

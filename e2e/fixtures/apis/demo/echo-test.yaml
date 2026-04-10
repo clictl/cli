@@ -1,0 +1,28 @@
+name: echo-test
+description: Echo service for testing
+version: "1.0.0"
+category: testing
+tags: [test, echo, http]
+protocol: http
+connection:
+  base_url: https://httpbin.org
+auth:
+  - type: none
+actions:
+  - name: get
+    description: Echo query parameters
+    method: GET
+    path: /get
+    safe: true
+    params:
+      - name: message
+        type: string
+        description: Message to echo
+        in: query
+    transform:
+      - extract: "$.args"
+  - name: status
+    description: Return a specific HTTP status code
+    method: GET
+    path: /status/200
+    safe: true

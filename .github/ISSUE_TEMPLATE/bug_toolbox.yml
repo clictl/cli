@@ -1,0 +1,46 @@
+name: Toolbox Bug Report
+description: Report a bug with a tool spec, sync, or the toolbox registry
+labels: ["bug", "toolbox"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Report issues with tool specs, toolbox sync, or registry behavior.
+  - type: input
+    id: tool
+    attributes:
+      label: Tool name
+      description: The tool or spec this relates to
+      placeholder: "anthropic/xlsx"
+    validations:
+      required: true
+  - type: dropdown
+    id: issue_type
+    attributes:
+      label: Issue type
+      options:
+        - Spec is broken or incorrect
+        - Sync failure
+        - Install failure
+        - Run failure
+        - Missing or outdated tool
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What went wrong and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Command output
+      description: Paste the full error output if applicable
+      render: shell
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
