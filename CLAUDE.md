@@ -45,6 +45,13 @@
 - Test: `go test ./...`
 - Lint: `go vet ./...`
 
+### Pre-Commit Requirements (MANDATORY)
+Before every commit, you MUST run both of these and verify they pass:
+1. **Full build:** `go build ./cmd/clictl/...`
+2. **Full test suite:** `go test ./...`
+
+Do NOT commit if either fails. Fix the issue first. No exceptions.
+
 ### Testing Requirements
 - **Run `go test ./...` after every code change** to catch regressions
 - **Every new feature must include unit tests** before it is considered complete
