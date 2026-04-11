@@ -1224,17 +1224,17 @@ func formatFilesystemScopeSummary(spec *models.ToolSpec) string {
 
 // clictl commands to allow agents to run without prompting.
 var cliCtlAllowedCommands = []string{
-	"clictl run *",
-	"clictl search *",
-	"clictl info *",
-	"clictl install *",
-	"clictl explain *",
-	"clictl list *",
-	"clictl categories",
-	"clictl tags",
-	"clictl remember *",
-	"clictl memory *",
-	"clictl vault set *",
+	"Clictl run *",
+	"Clictl search *",
+	"Clictl info *",
+	"Clictl install *",
+	"Clictl explain *",
+	"Clictl list *",
+	"Clictl categories",
+	"Clictl tags",
+	"Clictl remember *",
+	"Clictl memory *",
+	"Clictl vault set *",
 }
 
 // permissionSetterForTarget returns a function to add clictl permissions
